@@ -32,5 +32,5 @@ Sigue estos pasos para configurar y ejecutar el proyecto en tu máquina local.
 ### 1. Clonar el Repositorio
 
 ```bash
-git clone [https://github.com/RommelVargas/mypipe.git](https://github.com/RommelVargas/mypipe.git)
+git clone [https://github.com/RommelVargas/mypipy.git](https://github.com/RommelVargas/mypipy.git)
 cd mypipe
