@@ -1,5 +1,11 @@
 # Calculadora de Flujo en Tuberías | MyPipe
 
+## 🔗 Aplicación en Vivo (Render)
+
+| Estado de Despliegue | URL de la Aplicación |
+| :--- | :--- || **URL de Producción** | **[https://mypipy.onrender.com](https://mypipy.onrender.com)** |
+
+***
 ## Descripción
 
 **MyPipe** es una aplicación web interactiva desarrollada en **Django** diseñada para la resolución de problemas de **flujo interno en tuberías**. Utiliza la **Ecuación General de la Energía** y el modelo de **Darcy-Weisbach** con la correlación de **Colebrook-White** para determinar las pérdidas por fricción ($f$).
