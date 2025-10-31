@@ -1,0 +1,272 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora de Flujo en Tuberías - Ecuación de la Energía</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+    
+    <style>
+        /* Estilos CSS adaptados de tu nuevo diseño */
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f4f7fb; margin: 0; padding: 0; color: #333; }
+        header { background-color: #0078d7; color: white; padding: 15px 30px; text-align: center; font-size: 1.6em; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+        form { background: #fff; border-radius: 12px; padding: 30px; margin: 30px auto; max-width: 950px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h2, h3 { color: #0078d7; margin-bottom: 10px; }
+        fieldset { border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin-bottom: 25px; background-color: #fafafa; }
+        legend { font-weight: bold; color: #0078d7; }
+        label { display: block; margin-top: 10px; font-weight: 500; }
+        input[type="number"], select, textarea { width: 100%; padding: 8px; border: 1px solid #bbb; border-radius: 6px; margin-top: 5px; box-sizing: border-box; }
+        button { background-color: #0078d7; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; margin-top: 15px; transition: background-color 0.3s; }
+        button:hover { background-color: #005fa3; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { padding: 10px; border-bottom: 1px solid #ddd; text-align: left; }
+        .remove-btn { background-color: #dc3545; color: white; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; }
+        .results-box { background-color: #e6ffed; border: 1px solid #28a745; border-radius: 12px; padding: 20px; margin: 25px auto; max-width: 950px; box-shadow: 0 3px 12px rgba(0,0,0,0.1); }
+        .error-box { background-color: #f8d7da; color: #dc3545; border-radius: 6px; padding: 15px; margin: 15px 0; max-width: 950px; }
+        .chart-container { margin: 25px auto; padding: 20px; background-color: #fff; border-radius: 12px; max-width: 950px; box-shadow: 0 3px 12px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body>
+
+    <header>🧮 Análisis de Pérdidas de Carga en Tuberías</header>
+
+    <form method="POST">
+        {% csrf_token %}
+        <fieldset>
+            <legend>1️⃣ Sistema y Tipo de Cálculo</legend>
+            {{ form.system.label_tag }} {{ form.system }}
+            {{ form.variable_to_solve.label_tag }} {{ form.variable_to_solve }}
+        </fieldset>
+
+        <fieldset>
+            <legend>2️⃣ Propiedades del Fluido</legend>
+            {{ form.rho.label_tag }} {{ form.rho }}<small style="color: #666;"> (Ej: SI: kg/m³. Inglés: slug/ft³)</small>
+            {{ form.mu.label_tag }} {{ form.mu }}<small style="color: #666;"> (Ej: SI: kg/m·s. Inglés: lb·s/ft²)</small>
+        </fieldset>
+
+        <fieldset>
+            <legend>3️⃣ Datos de Flujo</legend>
+            {{ form.input_type.label_tag }} {{ form.input_type }}
+            
+            <div id="velocity-group" class="form-group">{{ form.velocity.label_tag }} {{ form.velocity }}</div>
+            <div id="caudal-group" class="form-group">{{ form.caudal.label_tag }} {{ form.caudal }}</div>
+        </fieldset>
+
+        <fieldset>
+            <legend>4️⃣ Propiedades de la Tubería</legend>
+            {{ form.length.label_tag }} {{ form.length }}
+            {{ form.nominal.label_tag }} {{ form.nominal }}
+            {{ form.schedule.label_tag }} {{ form.schedule }}
+            {{ form.material.label_tag }} {{ form.material }}
+        </fieldset>
+
+        <fieldset>
+            <legend>5️⃣ Accesorios</legend>
+            <label for="id_accessory_select">Seleccionar Accesorio</label>
+            <div style="display: flex; gap: 10px;">
+                <select id="id_accessory_select" style="flex-grow: 1;">
+                    <option value="">--- Seleccione ---</option>
+                    {% for key, k_val in accessories.items %}
+                        <option value="{{ key }}" data-k="{{ k_val }}">{{ key|title }} (K={{ k_val|floatformat:2 }})</option>
+                    {% endfor %}
+                </select>
+                <button type="button" id="add_accessory" onclick="addAccessory()" style="width: auto; margin-top: 0;">+ Agregar</button>
+            </div>
+
+            <table id="accessories_table">
+                <thead>
+                    <tr><th>Accesorio</th><th>Cant.</th><th>K</th><th>Acción</th></tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            
+            <input type="hidden" name="accessories_json" id="accessories_json" value="{}">
+            
+            <br>
+            {{ form.pump_efficiency.label_tag }} {{ form.pump_efficiency }}
+        </fieldset>
+
+        <fieldset>
+            <legend>6️⃣ Parámetros Energéticos</legend>
+            <p style="color: #666;">Solo necesarios si calcula **Velocidad/Caudal**.</p>
+            {{ form.P1.label_tag }} {{ form.P1 }}
+            {{ form.P2.label_tag }} {{ form.P2 }}
+            {{ form.z1.label_tag }} {{ form.z1 }}
+            {{ form.z2.label_tag }} {{ form.z2 }}
+        </fieldset>
+
+        <button type="submit">Calcular Resultados y Gráfica</button>
+    </form>
+    
+    {% if form.errors %}
+        <div class="error-box" style="margin: 20px auto; max-width: 950px;">
+            <strong>¡Error de Validación!</strong> Por favor, corrija los siguientes errores:
+            <ul>
+            {% for field, errors in form.errors.items %}
+                <li><strong>{{ field|title }}:</strong> {{ errors|join:", " }}</li>
+            {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+
+    {% if results and not results.error %}
+    <div class="results-box">
+        <h3>✅ Resultados del Cálculo</h3>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+            <p><strong>Variable Calculada:</strong> {{ results.variable_solved }}</p>
+            <p><strong>Pérdidas de Carga (H<sub>L</sub>):</strong> {{ results.HL }}</p>
+            <p><strong>Caída de Presión:</strong> {{ results.dP }}</p>
+            <p><strong>Potencia de Bombeo:</strong> {{ results.Power }}</p>
+            <p><strong>Velocidad (V):</strong> {{ results.V }}</p>
+            <p><strong>Caudal (Q):</strong> {{ results.Q }}</p>
+            <p><strong>Factor de Fricción (f):</strong> {{ results.f }}</p>
+            <p><strong>Número de Reynolds (Re):</strong> {{ results.Re }}</p>
+        </div>
+    </div>
+    {% elif results and results.error %}
+        <div class="error-box" style="margin: 20px auto; max-width: 950px;">
+            <strong>¡Error!</strong> {{ results.error }}
+        </div>
+    {% endif %}
+
+    {% if chart and chart.labels %}
+    <div class="chart-container">
+        <canvas id="lossChart"></canvas>
+    </div>
+    {% endif %}
+
+
+    <script>
+        // 0. Lógica de Interacción V vs Q (Oculta/Muestra Campos)
+        document.addEventListener('DOMContentLoaded', () => {
+            const inputTypeSelect = document.querySelector('#id_input_type');
+            const velocityGroup = document.querySelector('#velocity-group');
+            const caudalGroup = document.querySelector('#caudal-group');
+
+            function toggleInputFields() {
+                const selectedValue = inputTypeSelect.value;
+                velocityGroup.style.display = (selectedValue === 'V' ? 'block' : 'none');
+                caudalGroup.style.display = (selectedValue === 'Q' ? 'block' : 'none');
+            }
+
+            inputTypeSelect.addEventListener('change', toggleInputFields);
+            toggleInputFields(); 
+        });
+
+        // 1. Lógica para la tabla dinámica de accesorios
+        let accessoriesData = {};
+        const accessoriesTable = document.getElementById("accessories_table").querySelector("tbody");
+        const accessoriesJson = document.getElementById("accessories_json");
+
+        function updateHiddenInput() {
+            const payload = {};
+            for (const key in accessoriesData) {
+                payload[key] = accessoriesData[key].count;
+            }
+            accessoriesJson.value = JSON.stringify(payload);
+        }
+
+        function addAccessory() {
+            const select = document.getElementById('id_accessory_select');
+            const accessoryKey = select.value;
+            const accessoryName = select.options[select.selectedIndex].text;
+            const kValue = parseFloat(select.options[select.selectedIndex].getAttribute('data-k'));
+
+            if (!accessoryKey) return;
+            
+            if (accessoriesData[accessoryKey]) {
+                accessoriesData[accessoryKey].count += 1;
+                document.getElementById(`count-${accessoryKey}`).value = accessoriesData[accessoryKey].count;
+            } else {
+                accessoriesData[accessoryKey] = { key: accessoryKey, k: kValue, count: 1 };
+
+                const newRow = accessoriesTable.insertRow();
+                newRow.id = `row-${accessoryKey}`;
+
+                // Celda 1: Nombre
+                newRow.insertCell(0).innerHTML = accessoryName.split('(')[0].trim();
+                
+                // Celda 2: Cantidad (Input)
+                newRow.insertCell(1).innerHTML = `<input type="number" id="count-${accessoryKey}" value="1" min="1" 
+                                                    onchange="updateAccessoryCount('${accessoryKey}', this.value)" 
+                                                    style="width: 60px; text-align: center; padding: 5px;">`;
+
+                // Celda 3: Valor K
+                newRow.insertCell(2).innerHTML = kValue.toFixed(2);
+                
+                // Celda 4: Botón de Eliminar
+                newRow.insertCell(3).innerHTML = `<button type="button" class="remove-btn" onclick="removeAccessory('${accessoryKey}')" title="Eliminar accesorio">X</button>`;
+            }
+            updateHiddenInput();
+        }
+
+        function updateAccessoryCount(key, newCount) {
+            newCount = parseInt(newCount);
+            if (newCount > 0) {
+                accessoriesData[key].count = newCount;
+            } else {
+                removeAccessory(key);
+            }
+            updateHiddenInput();
+        }
+
+        function removeAccessory(key) {
+            delete accessoriesData[key];
+            const row = document.getElementById(`row-${key}`);
+            if (row) row.remove();
+            updateHiddenInput();
+        }
+
+        // 2. Lógica para Chart.js (Adaptada para usar la nueva estructura 'chart')
+        {% if chart and chart.labels %}
+            const L_unit = "{{ units.length | safe }}";
+            const V_unit = "{{ units.velocity | safe }}";
+
+            const V_labels = JSON.parse('{{ chart.labels | safe }}');
+            const HL_data = JSON.parse('{{ chart.values | safe }}');
+            
+            // Punto de cálculo para el scatter plot
+            const calcV = parseFloat("{{ results.V|slice:'0:-5'|safe }}"); 
+            const calcHL = parseFloat("{{ results.HL|slice:'0:-5'|safe }}");
+
+            const ctx = document.getElementById('lossChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: V_labels,
+                    datasets: [
+                        {
+                            label: 'Pérdidas Totales (HL) [' + L_unit + ']',
+                            data: HL_data,
+                            borderColor: '#0078d7',
+                            backgroundColor: 'rgba(0, 120, 215, 0.1)',
+                            fill: false,
+                            tension: 0.3,
+                            borderWidth: 2
+                        },
+                        {
+                            label: 'Punto Calculado',
+                            data: [{x: calcV, y: calcHL}],
+                            borderColor: '#28a745',
+                            backgroundColor: '#28a745',
+                            pointRadius: 6,
+                            showLine: false,
+                            type: 'scatter'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { title: { display: true, text: 'Velocidad (V) [' + V_unit + ']' } },
+                        y: { title: { display: true, text: 'Pérdida de Carga (hL) [' + L_unit + ']' }, beginAtZero: true }
+                    }
+                }
+            });
+        {% endif %}
+    </script>
+</body>
+</html>
