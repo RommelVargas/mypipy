@@ -1,0 +1,3 @@
+# Contenido del archivo runtime.txt
+python-3.11.9 
+# Puedes probar con 3.12 si lo usas localmente, pero 3.11 es muy estable.
